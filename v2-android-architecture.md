@@ -31,7 +31,7 @@ Engineer drives to site
   ↓
 Notification: "Start job at Acme Corp?"
   ↓
-Engineer taps "Yes" (or auto-start after 2 minutes)
+Engineer taps "Yes" to start
   ↓
 Job tracks time automatically
   ↓
@@ -220,9 +220,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         // Log event in Firestore
         logGeofenceEvent(jobId, "enter")
-
-        // Optional: Auto-start after 2 minutes if no action
-        scheduleAutoStart(context, jobId)
     }
 
     private fun handleJobSiteDeparture(context: Context, jobId: String) {
@@ -235,9 +232,6 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
         // Log event
         logGeofenceEvent(jobId, "exit")
-
-        // Optional: Auto-complete after 15 minutes if no return
-        scheduleAutoComplete(context, jobId)
     }
 }
 ```
@@ -246,9 +240,8 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
 
 ### 4. Auto Job Start Logic
 
-**Design Decision to Confirm:**
+**✅ CONFIRMED DESIGN: Always Ask for Confirmation**
 
-**Option A: Always Ask for Confirmation (Safer)**
 ```
 Engineer enters geofence
   ↓
@@ -260,31 +253,11 @@ If "Start Now" → Start job immediately
 If "Not Yet" → Dismiss (can manually start later)
 ```
 
-**Option B: Auto-Start with Timer (Smoother)**
-```
-Engineer enters geofence
-  ↓
-Show notification: "Starting job at Acme Corp in 2 minutes..."
-  ↓
-[Start Now] [Cancel Auto-Start]
-  ↓
-If no action → Auto-start after 2 minutes
-If "Cancel" → Dismiss
-```
-
-**Option C: Silent Auto-Start (Riskiest)**
-```
-Engineer enters geofence
-  ↓
-Auto-start job immediately (no prompt)
-  ↓
-Show notification: "Job started at Acme Corp"
-```
-
-**Recommendation: Option A** (Always ask)
+**Why this approach:**
 - Safer (prevents false starts)
 - Engineer maintains control
-- Can upgrade to Option B later if engineers want it
+- Handles edge cases (engineer just passing by, arrived early)
+- Can upgrade to timer option later if needed
 
 **Implementation:**
 ```kotlin
@@ -319,9 +292,8 @@ private fun showJobStartNotification(context: Context, jobId: String) {
 
 ### 5. Auto Job Complete Logic
 
-**Design Decision to Confirm:**
+**✅ CONFIRMED DESIGN: Ask Immediately on Exit**
 
-**Option A: Ask Immediately on Exit (Interrupts)**
 ```
 Engineer exits geofence
   ↓
@@ -333,36 +305,12 @@ If "Yes" → Go to completion screen (photos, description)
 If "No" → Continue job
 ```
 
-**Option B: Exit Timer with Return Window (Smoother)**
-```
-Engineer exits geofence
-  ↓
-Start 15-minute timer
-  ↓
-Show notification: "Job will auto-complete in 15 min..."
-  ↓
-If engineer returns to geofence → Cancel timer
-If 15 min passes → Show completion prompt
-```
-
-**Option C: Smart Detection (Complex)**
-```
-Engineer exits geofence
-  ↓
-Check conditions:
-- Time on site > expected duration?
-- Travel speed > 30 km/h? (driving away vs walking around)
-- Time of day (end of work day)?
-  ↓
-If likely done → Show completion prompt
-If likely still working → Wait
-```
-
-**Recommendation: Option A** (Ask immediately)
+**Why this approach:**
 - Simplest to implement
 - Clearest to engineer
 - Prevents forgotten jobs
-- Can upgrade to Option B later
+- Immediate feedback
+- Can upgrade to timer option later if needed
 
 **Implementation:**
 ```kotlin
@@ -842,41 +790,49 @@ com.easylog.android/
 
 ---
 
-## Key Technical Decisions to Confirm
+## ✅ Confirmed Design Decisions
 
 ### 1. Auto-Start Behavior
-- **Proposal:** Always ask for confirmation (Option A)
-- **Alternative:** Auto-start with 2-min timer (Option B)
-- **Your choice?**
+**CONFIRMED:** Always ask for confirmation
+- Show notification when engineer enters geofence
+- Requires explicit "Start Now" tap
+- Engineer maintains control
 
 ### 2. Auto-Complete Behavior
-- **Proposal:** Ask immediately on exit (Option A)
-- **Alternative:** 15-min timer with return window (Option B)
-- **Your choice?**
+**CONFIRMED:** Ask immediately on exit
+- Show notification when engineer exits geofence
+- Prompt: "Yes, I'm Done" or "No, Still Working"
+- Clear and immediate feedback
 
 ### 3. Geofence Radius
-- **Proposal:** Fixed 100m for all jobs
-- **Alternative:** Allow admin to set per job (50m-200m)
-- **Your choice?**
+**CONFIRMED:** Fixed 100m for all jobs
+- Simple, consistent behavior
+- Good balance between accuracy and false triggers
+- Can adjust per job manually if needed later
 
 ### 4. Manual Override
-- **Proposal:** Always allow manual start/stop (fallback if automation fails)
-- **Your choice?**
+**CONFIRMED:** Always allow manual start/stop
+- Fallback if GPS fails or automation incorrect
+- Engineers can manually start/stop from app
+- Safety net for edge cases
 
-### 5. GPS Accuracy Requirements
-- **Proposal:** Use both fine and coarse location (flexibility)
-- **Alternative:** Require fine location only (more accurate)
-- **Your choice?**
+### 5. Multiple Jobs at Same Location
+**CONFIRMED:** Let engineer pick from list
+- If multiple scheduled jobs at same location
+- Show all jobs, engineer selects which to start
+- Prevents confusion and wrong job selection
 
-### 6. Notification Persistence
-- **Proposal:** Job start/complete notifications don't auto-dismiss (require action)
-- **Alternative:** Auto-dismiss after 5 minutes
-- **Your choice?**
+### 6. GPS Accuracy
+**CONFIRMED:** Use both fine and coarse location
+- Request both permissions for flexibility
+- Coarse sufficient for geofencing
+- Fine used for job site confirmation
 
-### 7. Multiple Jobs at Same Location
-- **Proposal:** Show all jobs at location, let engineer pick
-- **Alternative:** Start most recent scheduled job
-- **Your choice?**
+### 7. Notification Persistence
+**CONFIRMED:** Job notifications require action
+- Don't auto-dismiss (too important)
+- Engineer must explicitly respond
+- Prevents missed jobs
 
 ---
 
@@ -940,14 +896,19 @@ dependencies {
 
 ---
 
-## What do you think?
+## Implementation Ready
 
-**Questions for you:**
-1. Which auto-start option? (Always ask / Timer / Silent)
-2. Which auto-complete option? (Ask immediately / Timer / Smart detect)
-3. Fixed 100m geofence or allow customization?
-4. Should we always allow manual override?
-5. Any concerns about battery life?
-6. Ready to start with permissions + basic geofencing?
+All design decisions confirmed. The v2 architecture is locked in and ready for implementation.
 
-Let me know what to change and I can update the plan!
+**Next steps:**
+1. Start with permissions + basic geofencing (Week 1)
+2. Build scheduled jobs integration (Week 2-3)
+3. Implement auto-start/complete logic (Week 3-4)
+4. Add offline support (Week 4-5)
+5. Real-world testing + battery optimization (Week 5-6)
+
+**Key focus areas:**
+- Battery optimization through efficient geofencing
+- Robust offline support
+- Clear engineer notifications
+- Edge case handling (poor GPS, multiple jobs, etc.)
