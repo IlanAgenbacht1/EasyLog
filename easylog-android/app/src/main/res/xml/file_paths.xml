@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- For camera captured photos -->
+    <cache-path name="job_photos" path="photos/" />
+
+    <!-- For photos stored in app's files directory -->
+    <files-path name="job_photos_files" path="photos/" />
+</paths>

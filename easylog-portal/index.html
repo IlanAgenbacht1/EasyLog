@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - EasyLog Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+
+    <!-- App Scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth-service.js"></script>
+    <script src="js/firestore-service.js"></script>
+    <script src="js/utils.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center h-16">
+                <div class="flex-1 flex items-center">
+                    <span class="text-xl font-bold text-blue-600">EasyLog</span>
+                </div>
+                <div class="flex-1 flex items-center justify-center space-x-1">
+                    <a href="index.html" class="text-blue-600 bg-blue-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap">Dashboard</a>
+                    <a href="timelogs.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Time Logs</a>
+                    <a href="engineers.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Engineers</a>
+                    <a href="customers.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Customers</a>
+                    <a href="reports.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Reports</a>
+                </div>
+                <div class="flex-1 flex items-center justify-end space-x-3">
+                    <div class="text-sm text-right">
+                        <div id="userName" class="font-medium text-gray-900">Loading...</div>
+                        <div class="text-xs text-gray-500">Portal Admin</div>
+                    </div>
+                    <button onclick="handleLogout()" class="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-white hover:bg-red-600 border border-red-600 rounded-md transition">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Page Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p class="text-gray-600">Today's overview</p>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-green-100 rounded-full">
+                        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-500">Completed Jobs</p>
+                        <p id="completedJobs" class="text-2xl font-bold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-yellow-100 rounded-full">
+                        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-500">Active Jobs</p>
+                        <p id="activeJobs" class="text-2xl font-bold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-blue-100 rounded-full">
+                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-500">Total Hours</p>
+                        <p id="totalHours" class="text-2xl font-bold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex items-center">
+                    <div class="p-3 bg-purple-100 rounded-full">
+                        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4">
+                        <p class="text-sm text-gray-500">On-site Hours</p>
+                        <p id="onsiteHours" class="text-2xl font-bold text-gray-900">-</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Engineer Summary -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-lg font-semibold text-gray-900">Engineer Activity Today</h2>
+            </div>
+            <div id="engineerSummary" class="p-6">
+                <!-- Loading or content -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Check auth and set user info
+        (async function initializeDashboard() {
+            // Require authentication
+            const isAuthed = await authService.requireAuth();
+            if (!isAuthed) return;
+
+            // Set user name
+            const adminInfo = await authService.getCurrentAdminInfo();
+            if (adminInfo) {
+                document.getElementById('userName').textContent = adminInfo.name || adminInfo.email;
+            }
+
+            // Load dashboard data
+            await loadDashboard();
+        })();
+
+        // Logout handler
+        async function handleLogout() {
+            try {
+                await authService.signOut();
+                window.location.href = 'login.html';
+            } catch (error) {
+                console.error('Logout error:', error);
+                utils.showToast('Failed to log out', 'error');
+            }
+        }
+
+        // Load dashboard data
+        async function loadDashboard() {
+            const summaryContainer = document.getElementById('engineerSummary');
+            utils.showLoading(summaryContainer);
+
+            try {
+                const summary = await firestoreService.dashboard.getSummary();
+
+                // Update stats
+                document.getElementById('completedJobs').textContent = summary.completedJobs || 0;
+                document.getElementById('activeJobs').textContent = summary.activeJobs || 0;
+                document.getElementById('totalHours').textContent = utils.formatHoursDecimal(summary.totalMinutes);
+                document.getElementById('onsiteHours').textContent = utils.formatHoursDecimal(summary.onsiteMinutes);
+
+                // Render engineer summary
+                if (summary.engineerSummary && summary.engineerSummary.length > 0) {
+                    summaryContainer.innerHTML = `
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                    <th class="pb-3">Engineer</th>
+                                    <th class="pb-3">Jobs</th>
+                                    <th class="pb-3">Total Time</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                ${summary.engineerSummary.map(eng => `
+                                    <tr>
+                                        <td class="py-3">
+                                            <div class="font-medium text-gray-900">${utils.escapeHtml(eng.engineerName)}</div>
+                                        </td>
+                                        <td class="py-3 text-gray-600">${eng.jobCount}</td>
+                                        <td class="py-3 text-gray-600">${utils.formatMinutes(eng.totalMinutes)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    utils.showEmpty(summaryContainer, 'No engineer activity today');
+                }
+            } catch (error) {
+                console.error('Failed to load dashboard:', error);
+                utils.showError(summaryContainer, 'Failed to load dashboard data');
+                utils.showToast(error.message || 'Failed to load dashboard data', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

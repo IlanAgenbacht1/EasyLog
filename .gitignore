@@ -1,0 +1,28 @@
+# Firebase secrets
+serviceAccountKey.json
+google-services.json
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmpclaude-*
+.kotlin/errors/
+
+# Firebase cache
+.firebase/
+
+# Node modules
+node_modules/
+
+# Build artifacts
+*.log
+*.cache
+
+# OS files
+.DS_Store
+Thumbs.db

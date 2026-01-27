@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">EasyLog</string>
+    <!-- Web client ID from Firebase Console > Authentication > Sign-in method > Google -->
+    <!-- This value is auto-generated in google-services.json as "client_id" with "client_type": 3 -->
+    <string name="default_web_client_id">YOUR_WEB_CLIENT_ID</string>
+</resources>

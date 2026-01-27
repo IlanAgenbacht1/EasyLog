@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.EasyLog" parent="android:Theme.Material.NoActionBar">
+        <!-- Match Compose dark theme background to prevent flicker -->
+        <item name="android:windowBackground">@color/dark_charcoal</item>
+        <item name="android:colorBackground">@color/dark_charcoal</item>
+        <item name="android:statusBarColor">@color/dark_charcoal</item>
+        <item name="android:navigationBarColor">@color/dark_charcoal</item>
+    </style>
+</resources>

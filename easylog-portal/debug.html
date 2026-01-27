@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - EasyLog Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <script src="js/firebase-config.js"></script>
+</head>
+<body class="min-h-screen bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Firebase Debug Tool</h1>
+
+        <div class="bg-white rounded-lg shadow p-6 mb-4">
+            <h2 class="text-lg font-semibold mb-4">Current Auth State</h2>
+            <pre id="authState" class="bg-gray-50 p-4 rounded text-sm overflow-auto"></pre>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6 mb-4">
+            <h2 class="text-lg font-semibold mb-4">Firestore Connection</h2>
+            <button onclick="testFirestore()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Test Firestore Access
+            </button>
+            <pre id="firestoreTest" class="bg-gray-50 p-4 rounded text-sm overflow-auto mt-4"></pre>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6 mb-4">
+            <h2 class="text-lg font-semibold mb-4">Sign In Test</h2>
+            <button onclick="testSignIn()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                Sign In with Google
+            </button>
+            <pre id="signInTest" class="bg-gray-50 p-4 rounded text-sm overflow-auto mt-4"></pre>
+        </div>
+
+        <div class="bg-white rounded-lg shadow p-6">
+            <h2 class="text-lg font-semibold mb-4">Portal Admins Collection Check</h2>
+            <button onclick="listPortalUsers()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+                List All Portal Admins
+            </button>
+            <pre id="portalUsersList" class="bg-gray-50 p-4 rounded text-sm overflow-auto mt-4"></pre>
+        </div>
+    </div>
+
+    <script>
+        // Check auth state on load
+        auth.onAuthStateChanged((user) => {
+            const authState = document.getElementById('authState');
+            if (user) {
+                authState.textContent = JSON.stringify({
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName,
+                    emailVerified: user.emailVerified
+                }, null, 2);
+            } else {
+                authState.textContent = 'Not signed in';
+            }
+        });
+
+        async function testFirestore() {
+            const output = document.getElementById('firestoreTest');
+            output.textContent = 'Testing Firestore connection...\n';
+
+            try {
+                const testDoc = await db.collection('engineers').limit(1).get();
+                output.textContent += `✅ Firestore connected\n`;
+                output.textContent += `Found ${testDoc.size} engineers\n`;
+            } catch (error) {
+                output.textContent += `❌ Firestore error: ${error.message}\n`;
+                output.textContent += `Full error: ${JSON.stringify(error, null, 2)}\n`;
+            }
+        }
+
+        async function testSignIn() {
+            const output = document.getElementById('signInTest');
+            output.textContent = 'Starting Google Sign-in...\n';
+
+            try {
+                const provider = new firebase.auth.GoogleAuthProvider();
+                provider.setCustomParameters({ prompt: 'select_account' });
+
+                const result = await auth.signInWithPopup(provider);
+                const user = result.user;
+
+                output.textContent += `✅ Google Sign-in successful\n`;
+                output.textContent += `UID: ${user.uid}\n`;
+                output.textContent += `Email: ${user.email}\n\n`;
+
+                output.textContent += `Checking portal_admins collection...\n`;
+                const adminDoc = await db.collection('portal_admins').doc(user.uid).get();
+
+                output.textContent += `Document exists: ${adminDoc.exists}\n`;
+
+                if (adminDoc.exists) {
+                    output.textContent += `Document data:\n${JSON.stringify(adminDoc.data(), null, 2)}\n`;
+                } else {
+                    output.textContent += `❌ No document found for UID: ${user.uid}\n`;
+                    output.textContent += `\nTo fix, add this document to portal_admins collection:\n`;
+                    output.textContent += `Document ID: ${user.uid}\n`;
+                    output.textContent += `Fields:\n`;
+                    output.textContent += JSON.stringify({
+                        uid: user.uid,
+                        email: user.email,
+                        name: user.displayName,
+                        isActive: true,
+                        createdAt: new Date()
+                    }, null, 2);
+                }
+            } catch (error) {
+                output.textContent += `❌ Sign-in error: ${error.message}\n`;
+                output.textContent += `Full error: ${JSON.stringify(error, null, 2)}\n`;
+            }
+        }
+
+        async function listPortalUsers() {
+            const output = document.getElementById('portalUsersList');
+            output.textContent = 'Fetching all portal admins...\n\n';
+
+            try {
+                const snapshot = await db.collection('portal_admins').get();
+
+                output.textContent += `Found ${snapshot.size} portal admins:\n\n`;
+
+                snapshot.docs.forEach((doc) => {
+                    output.textContent += `Document ID: ${doc.id}\n`;
+                    output.textContent += `Data: ${JSON.stringify(doc.data(), null, 2)}\n`;
+                    output.textContent += `---\n\n`;
+                });
+
+                if (snapshot.empty) {
+                    output.textContent += '❌ No portal admins found!\n';
+                    output.textContent += 'You need to add documents to the portal_admins collection.\n';
+                }
+            } catch (error) {
+                output.textContent += `❌ Error: ${error.message}\n`;
+                output.textContent += `Full error: ${JSON.stringify(error, null, 2)}\n`;
+            }
+        }
+
+        // Auto-check portal users on load if signed in
+        auth.onAuthStateChanged((user) => {
+            if (user) {
+                listPortalUsers();
+            }
+        });
+    </script>
+</body>
+</html>

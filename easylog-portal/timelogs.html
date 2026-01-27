@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Logs - EasyLog Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+
+    <!-- PDF Libraries -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
+
+    <!-- App Scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth-service.js"></script>
+    <script src="js/firestore-service.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/pdf-generator.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .pdf-progress-bar {
+            transition: width 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center h-16">
+                <div class="flex-1 flex items-center">
+                    <span class="text-xl font-bold text-blue-600">EasyLog</span>
+                </div>
+                <div class="flex-1 flex items-center justify-center space-x-1">
+                    <a href="index.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Dashboard</a>
+                    <a href="timelogs.html" class="text-blue-600 bg-blue-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap">Time Logs</a>
+                    <a href="engineers.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Engineers</a>
+                    <a href="customers.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Customers</a>
+                    <a href="reports.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Reports</a>
+                </div>
+                <div class="flex-1 flex items-center justify-end space-x-3">
+                    <div class="text-sm text-right">
+                        <div id="userName" class="font-medium text-gray-900">Loading...</div>
+                        <div class="text-xs text-gray-500">Portal Admin</div>
+                    </div>
+                    <button onclick="handleLogout()" class="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-white hover:bg-red-600 border border-red-600 rounded-md transition">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Page Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Time Logs</h1>
+                <p class="text-gray-600">View and manage all time entries</p>
+            </div>
+            <div class="flex gap-2">
+                <!-- Batch Export Buttons (shown when items selected) -->
+                <div id="batchActions" class="hidden flex gap-2">
+                    <span id="selectedCount" class="px-3 py-2 text-sm font-medium text-gray-700">0 selected</span>
+                    <button onclick="exportSelectedAsPDF('zip')" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                        </svg>
+                        Export as ZIP
+                    </button>
+                    <button onclick="exportSelectedAsPDF('single')" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Export Multi-Page
+                    </button>
+                    <button onclick="clearSelection()" class="px-4 py-2 text-gray-600 hover:text-gray-800 transition">
+                        Clear
+                    </button>
+                </div>
+                <!-- Export CSV Button -->
+                <button onclick="exportCsv()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Export CSV
+                </button>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="bg-white rounded-lg shadow p-4 mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input type="date" id="startDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <input type="date" id="endDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Engineer</label>
+                    <select id="engineerFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">All Engineers</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Customer</label>
+                    <select id="customerFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">All Customers</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                    <select id="statusFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">All Status</option>
+                        <option value="completed">Completed</option>
+                        <option value="in_progress">In Progress</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button onclick="applyFilters()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition mr-2">
+                    Apply Filters
+                </button>
+                <button onclick="clearFilters()" class="text-gray-500 hover:text-gray-700 px-4 py-2">
+                    Clear
+                </button>
+            </div>
+        </div>
+
+        <!-- Time Logs Table -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div id="timelogsTable" class="overflow-x-auto">
+                <!-- Table content -->
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination" class="mt-4 flex justify-between items-center">
+            <!-- Pagination controls -->
+        </div>
+    </main>
+
+    <!-- Detail Modal -->
+    <div id="detailModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6" id="detailContent">
+                    <!-- Detail content -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PDF Progress Modal -->
+    <div id="pdfProgressModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <div class="text-center">
+                    <div class="mb-4">
+                        <svg class="animate-spin h-12 w-12 text-blue-600 mx-auto" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2" id="pdfProgressTitle">Generating PDF...</h3>
+                    <p class="text-sm text-gray-600 mb-4" id="pdfProgressText">Please wait</p>
+                    <div class="w-full bg-gray-200 rounded-full h-2.5">
+                        <div class="bg-blue-600 h-2.5 rounded-full pdf-progress-bar" id="pdfProgressBar" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        const pageSize = 50;
+        let engineers = [];
+        let customers = [];
+        let totalLoaded = 0;
+
+        // Check auth on load
+        (async function initializeTimelogs() {
+            const isAuthed = await authService.requireAuth();
+            if (!isAuthed) return;
+
+            // Set user name
+            const adminInfo = await authService.getCurrentAdminInfo();
+            if (adminInfo) {
+                document.getElementById('userName').textContent = adminInfo.name || adminInfo.email;
+            }
+
+            await initFilters();
+            await loadTimeLogs();
+        })();
+
+        async function handleLogout() {
+            try {
+                await authService.signOut();
+                window.location.href = 'login.html';
+            } catch (error) {
+                utils.showToast('Failed to log out', 'error');
+            }
+        }
+
+        // Initialize filters
+        async function initFilters() {
+            // Set default dates (last 30 days)
+            document.getElementById('startDate').value = utils.getDaysAgo(30);
+            document.getElementById('endDate').value = utils.getDateInputValue();
+
+            // Load engineers and customers for filters
+            try {
+                const [engList, custList] = await Promise.all([
+                    firestoreService.engineers.list(),
+                    firestoreService.customers.list()
+                ]);
+
+                engineers = engList || [];
+                customers = custList || [];
+
+                const engSelect = document.getElementById('engineerFilter');
+                engineers.forEach(eng => {
+                    const option = document.createElement('option');
+                    option.value = eng.id;
+                    option.textContent = eng.name;
+                    engSelect.appendChild(option);
+                });
+
+                const custSelect = document.getElementById('customerFilter');
+                customers.forEach(cust => {
+                    const option = document.createElement('option');
+                    option.value = cust.id;
+                    option.textContent = cust.name;
+                    custSelect.appendChild(option);
+                });
+
+                console.log(`Loaded ${engineers.length} engineers and ${customers.length} customers for filters`);
+            } catch (error) {
+                console.error('Failed to load filters:', error);
+                utils.showToast('Failed to load filter options: ' + error.message, 'error');
+            }
+        }
+
+        // Load time logs
+        async function loadTimeLogs() {
+            const container = document.getElementById('timelogsTable');
+            utils.showLoading(container);
+
+            try {
+                const filters = {
+                    startDate: document.getElementById('startDate').value,
+                    endDate: document.getElementById('endDate').value,
+                    engineerId: document.getElementById('engineerFilter').value,
+                    customerId: document.getElementById('customerFilter').value,
+                    status: document.getElementById('statusFilter').value,
+                    limit: pageSize
+                };
+
+                const logs = await firestoreService.timelogs.list(filters);
+
+                if (!logs || logs.length === 0) {
+                    utils.showEmpty(container, 'No time logs found');
+                    document.getElementById('pagination').innerHTML = '';
+                    return;
+                }
+
+                container.innerHTML = `
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-3 py-3 text-left">
+                                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                                </th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engineer</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            ${logs.map(log => `
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-3 py-4">
+                                        <input type="checkbox" class="timelog-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500" value="${log.id}" onchange="updateSelection()">
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        ${utils.formatDate(log.timeStarted)}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        ${utils.escapeHtml(log.engineerName)}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        ${utils.escapeHtml(log.customerName)}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        ${utils.formatTime(log.timeStarted)} - ${utils.formatTime(log.timeEnded)}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                        ${utils.formatMinutes((log.travelTimeMinutes || 0) + (log.timeOnSiteMinutes || 0))}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex flex-col gap-1 items-start">
+                                            ${utils.getStatusBadge(log.status)}
+                                            ${utils.getUploadStatusBadge(log.uploadStatus, log.uploadQueuedAt)}
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                                        <button onclick="viewDetail('${log.id}')" class="text-blue-600 hover:text-blue-800 transition">
+                                            View
+                                        </button>
+                                        ${log.status === 'completed' ? `
+                                        <button onclick="exportSinglePDF('${log.id}')" class="text-green-600 hover:text-green-800 transition" title="Export as PDF">
+                                            PDF
+                                        </button>
+                                        ` : ''}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+
+                // Update result count
+                totalLoaded = logs.length;
+                renderResultInfo();
+            } catch (error) {
+                console.error('Failed to load time logs:', error);
+                utils.showError(container, 'Failed to load time logs');
+            }
+        }
+
+        function renderResultInfo() {
+            const container = document.getElementById('pagination');
+            const maxText = totalLoaded >= pageSize ? ` (showing first ${pageSize})` : '';
+            container.innerHTML = `
+                <div class="text-sm text-gray-600">
+                    <span class="font-medium">${totalLoaded}</span> result${totalLoaded !== 1 ? 's' : ''} loaded${maxText}
+                </div>
+            `;
+        }
+
+        function applyFilters() {
+            loadTimeLogs();
+        }
+
+        function clearFilters() {
+            document.getElementById('startDate').value = utils.getDaysAgo(30);
+            document.getElementById('endDate').value = utils.getDateInputValue();
+            document.getElementById('engineerFilter').value = '';
+            document.getElementById('customerFilter').value = '';
+            document.getElementById('statusFilter').value = '';
+            loadTimeLogs();
+        }
+
+        async function exportCsv() {
+            const filters = {
+                startDate: document.getElementById('startDate').value,
+                endDate: document.getElementById('endDate').value,
+                engineerId: document.getElementById('engineerFilter').value,
+                customerId: document.getElementById('customerFilter').value
+            };
+
+            try {
+                await firestoreService.exportToCSV(filters);
+                utils.showToast('Export successful', 'success');
+            } catch (error) {
+                utils.showToast('Export failed: ' + error.message, 'error');
+            }
+        }
+
+        async function viewDetail(id) {
+            const modal = document.getElementById('detailModal');
+            const content = document.getElementById('detailContent');
+
+            modal.classList.remove('hidden');
+            content.innerHTML = `
+                <div class="flex justify-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                </div>
+            `;
+
+            try {
+                const log = await firestoreService.timelogs.get(id);
+
+                content.innerHTML = `
+                    <div class="flex justify-between items-start mb-6">
+                        <h2 class="text-xl font-bold text-gray-900">Time Log Details</h2>
+                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600 transition">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Engineer</p>
+                                <p class="font-medium">${utils.escapeHtml(log.engineerName)}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Customer</p>
+                                <p class="font-medium">${utils.escapeHtml(log.customerName)}</p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Date</p>
+                                <p class="font-medium">${utils.formatDate(log.timeStarted)}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Status</p>
+                                <div class="flex flex-col gap-1 items-start">
+                                    ${utils.getStatusBadge(log.status)}
+                                    ${utils.getUploadStatusBadge(log.uploadStatus, log.uploadQueuedAt)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Start Time</p>
+                                <p class="font-medium">${utils.formatTime(log.timeStarted)}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">End Time</p>
+                                <p class="font-medium">${utils.formatTime(log.timeEnded)}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Travel Time</p>
+                                <p class="font-medium">${utils.formatMinutes(log.travelTimeMinutes)}</p>
+                            </div>
+                        </div>
+
+                        <div>
+                            <p class="text-sm text-gray-500">On-Site Time</p>
+                            <p class="font-medium">${utils.formatMinutes(log.timeOnSiteMinutes)}</p>
+                        </div>
+
+                        <div>
+                            <p class="text-sm text-gray-500">Work Description</p>
+                            <p class="font-medium whitespace-pre-wrap">${utils.escapeHtml(log.workDescription) || '-'}</p>
+                        </div>
+
+                        ${log.customerSignerName ? `
+                            <div class="border-t pt-4">
+                                <p class="text-sm text-gray-500">Signed By</p>
+                                <p class="font-medium">${utils.escapeHtml(log.customerSignerName)}</p>
+                                <p class="text-sm text-gray-500 mt-1">${utils.formatDateTime(log.signedAt)}</p>
+                            </div>
+                        ` : ''}
+
+                        ${log.photoPaths && log.photoPaths.length > 0 ? `
+                            <div id="photosContainer" class="border-t pt-4">
+                                <p class="text-sm text-gray-500 mb-2">Job Photos (${log.photoPaths.length})</p>
+                                <div class="grid grid-cols-3 gap-2">
+                                    <p class="text-sm text-gray-400 col-span-3">Loading photos...</p>
+                                </div>
+                            </div>
+                        ` : ''}
+
+                        ${log.signaturePath ? `
+                            <div id="signatureContainer">
+                                <p class="text-sm text-gray-500 mb-2">Signature</p>
+                                <div class="border rounded-lg p-2 bg-gray-50 inline-block">
+                                    <p class="text-sm text-gray-400">Loading signature...</p>
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="closeModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                            Close
+                        </button>
+                    </div>
+                `;
+
+                // Load photos if available
+                if (log.photoPaths && log.photoPaths.length > 0) {
+                    try {
+                        const photoUrls = await firestoreService.timelogs.getPhotoUrls(id);
+                        if (photoUrls && photoUrls.length > 0) {
+                            document.getElementById('photosContainer').innerHTML = `
+                                <p class="text-sm text-gray-500 mb-2">Job Photos (${photoUrls.length})</p>
+                                <div class="grid grid-cols-3 gap-2">
+                                    ${photoUrls.map(url => `
+                                        <a href="${url}" target="_blank" class="block">
+                                            <img src="${url}" alt="Job Photo" class="w-full h-24 object-cover rounded-lg border hover:opacity-80 transition cursor-pointer">
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            `;
+                        }
+                    } catch (e) {
+                        console.error('Failed to load photos:', e);
+                        document.getElementById('photosContainer').innerHTML = `
+                            <p class="text-sm text-gray-500 mb-2">Job Photos</p>
+                            <p class="text-sm text-gray-400">Failed to load photos</p>
+                        `;
+                    }
+                }
+
+                // Load signature if available
+                if (log.signaturePath) {
+                    try {
+                        const signatureUrl = await firestoreService.timelogs.getSignatureUrl(id);
+                        if (signatureUrl) {
+                            document.getElementById('signatureContainer').innerHTML = `
+                                <p class="text-sm text-gray-500 mb-2">Signature</p>
+                                <div class="border rounded-lg p-2 bg-gray-50 inline-block">
+                                    <img src="${signatureUrl}" alt="Customer Signature" class="max-h-32">
+                                </div>
+                            `;
+                        }
+                    } catch (e) {
+                        console.error('Failed to load signature:', e);
+                    }
+                }
+            } catch (error) {
+                content.innerHTML = `
+                    <div class="text-center py-8">
+                        <p class="text-red-500">Failed to load details</p>
+                        <button onclick="closeModal()" class="mt-4 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition">Close</button>
+                    </div>
+                `;
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.add('hidden');
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('detailModal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) {
+                closeModal();
+            }
+        });
+
+        // ==================== PDF EXPORT FUNCTIONALITY ====================
+
+        let pdfGenerator = null;
+        let selectedTimelogIds = new Set();
+
+        // Initialize PDF generator
+        function initPDFGenerator() {
+            if (!pdfGenerator) {
+                try {
+                    // Pass Firebase Storage reference to enable authenticated downloads (bypasses CORS)
+                    const storage = firebase.storage();
+                    pdfGenerator = new JobCardPDFGenerator(storage);
+                } catch (error) {
+                    console.error('Failed to initialize PDF generator:', error);
+                    utils.showToast('PDF library not loaded', 'error');
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Show/hide PDF progress modal
+        function showPDFProgress(title, text) {
+            document.getElementById('pdfProgressTitle').textContent = title;
+            document.getElementById('pdfProgressText').textContent = text;
+            document.getElementById('pdfProgressBar').style.width = '0%';
+            document.getElementById('pdfProgressModal').classList.remove('hidden');
+        }
+
+        function hidePDFProgress() {
+            document.getElementById('pdfProgressModal').classList.add('hidden');
+        }
+
+        function updatePDFProgress(current, total) {
+            const percent = Math.round((current / total) * 100);
+            document.getElementById('pdfProgressBar').style.width = percent + '%';
+            document.getElementById('pdfProgressText').textContent = `Processing ${current} of ${total}...`;
+        }
+
+        // Fetch timelog data for PDF generation
+        async function fetchTimelogDataForPDF(timelogId) {
+            try {
+                // Fetch timelog
+                const timelog = await firestoreService.timelogs.get(timelogId);
+                if (!timelog) {
+                    throw new Error('Time log not found');
+                }
+
+                // Only export completed and signed jobs
+                if (timelog.status !== 'completed') {
+                    throw new Error('Only completed jobs can be exported as PDF');
+                }
+
+                // Fetch customer data
+                const customer = await firestoreService.customers.get(timelog.customerId);
+
+                // Fetch photo URLs
+                let photoUrls = [];
+                if (timelog.photoPaths && timelog.photoPaths.length > 0) {
+                    console.log('Time log has photo paths:', timelog.photoPaths);
+                    try {
+                        photoUrls = await firestoreService.timelogs.getPhotoUrls(timelogId);
+                        console.log('Fetched photo URLs:', photoUrls);
+                    } catch (e) {
+                        console.warn('Failed to fetch photos:', e);
+                    }
+                } else {
+                    console.log('No photo paths in timelog');
+                }
+
+                // Fetch signature URL
+                if (timelog.signaturePath && !timelog.signatureUrl) {
+                    try {
+                        timelog.signatureUrl = await firestoreService.timelogs.getSignatureUrl(timelogId);
+                    } catch (e) {
+                        console.warn('Failed to fetch signature:', e);
+                    }
+                }
+
+                return {
+                    timelog: { ...timelog, id: timelogId },
+                    customer: customer || {},
+                    photoUrls: photoUrls || []
+                };
+            } catch (error) {
+                console.error('Failed to fetch timelog data:', error);
+                throw error;
+            }
+        }
+
+        // Export single timelog as PDF
+        async function exportSinglePDF(timelogId) {
+            if (!initPDFGenerator()) return;
+
+            showPDFProgress('Generating Job Card PDF', 'Loading data...');
+
+            try {
+                const data = await fetchTimelogDataForPDF(timelogId);
+
+                document.getElementById('pdfProgressText').textContent = 'Creating PDF document...';
+                const pdfBytes = await pdfGenerator.generateJobCard(
+                    data.timelog,
+                    data.customer,
+                    data.photoUrls
+                );
+
+                const filename = `JobCard_${data.timelog.customerName.replace(/[^a-z0-9]/gi, '_')}_${data.timelog.localId || data.timelog.id}.pdf`;
+                pdfGenerator.downloadPDF(pdfBytes, filename);
+
+                hidePDFProgress();
+                utils.showToast('PDF generated successfully', 'success');
+            } catch (error) {
+                console.error('PDF generation failed:', error);
+                hidePDFProgress();
+                utils.showToast('Failed to generate PDF: ' + error.message, 'error');
+            }
+        }
+
+        // Export selected timelogs as PDF (ZIP or multi-page)
+        async function exportSelectedAsPDF(mode = 'zip') {
+            if (selectedTimelogIds.size === 0) {
+                utils.showToast('No time logs selected', 'warning');
+                return;
+            }
+
+            if (!initPDFGenerator()) return;
+
+            const title = mode === 'zip' ? 'Generating ZIP with PDFs' : 'Generating Multi-Page PDF';
+            showPDFProgress(title, 'Loading data...');
+
+            try {
+                // Fetch data for all selected timelogs
+                const jobsData = [];
+                const selectedIds = Array.from(selectedTimelogIds);
+
+                for (let i = 0; i < selectedIds.length; i++) {
+                    updatePDFProgress(i + 1, selectedIds.length);
+                    try {
+                        const data = await fetchTimelogDataForPDF(selectedIds[i]);
+                        jobsData.push(data);
+                    } catch (error) {
+                        console.error(`Failed to fetch data for ${selectedIds[i]}:`, error);
+                        // Continue with other jobs
+                    }
+                }
+
+                if (jobsData.length === 0) {
+                    throw new Error('No valid completed jobs found in selection');
+                }
+
+                // Generate PDF(s)
+                document.getElementById('pdfProgressText').textContent = 'Generating PDFs...';
+                document.getElementById('pdfProgressBar').style.width = '0%';
+
+                let result, filename;
+
+                if (mode === 'zip') {
+                    result = await pdfGenerator.generateBatchZip(
+                        jobsData,
+                        (current, total) => updatePDFProgress(current, total)
+                    );
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    filename = `JobCards_${dateStr}.zip`;
+                } else {
+                    result = await pdfGenerator.generateBatchMultiPage(
+                        jobsData,
+                        (current, total) => updatePDFProgress(current, total)
+                    );
+                    const dateStr = new Date().toISOString().split('T')[0];
+                    filename = `JobCards_MultiPage_${dateStr}.pdf`;
+                }
+
+                pdfGenerator.downloadPDF(result, filename);
+
+                hidePDFProgress();
+                utils.showToast(`Successfully generated ${jobsData.length} job cards`, 'success');
+                clearSelection();
+            } catch (error) {
+                console.error('Batch PDF generation failed:', error);
+                hidePDFProgress();
+                utils.showToast('Failed to generate PDFs: ' + error.message, 'error');
+            }
+        }
+
+        // Selection management
+        function updateSelection() {
+            selectedTimelogIds.clear();
+            document.querySelectorAll('.timelog-checkbox:checked').forEach(cb => {
+                selectedTimelogIds.add(cb.value);
+            });
+
+            const count = selectedTimelogIds.size;
+            document.getElementById('selectedCount').textContent = `${count} selected`;
+
+            if (count > 0) {
+                document.getElementById('batchActions').classList.remove('hidden');
+                document.getElementById('batchActions').classList.add('flex');
+            } else {
+                document.getElementById('batchActions').classList.add('hidden');
+                document.getElementById('batchActions').classList.remove('flex');
+            }
+
+            // Update select all checkbox
+            const allCheckboxes = document.querySelectorAll('.timelog-checkbox');
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+            }
+        }
+
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll').checked;
+            document.querySelectorAll('.timelog-checkbox').forEach(cb => {
+                cb.checked = selectAll;
+            });
+            updateSelection();
+        }
+
+        function clearSelection() {
+            document.querySelectorAll('.timelog-checkbox').forEach(cb => {
+                cb.checked = false;
+            });
+            const selectAllCheckbox = document.getElementById('selectAll');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            }
+            updateSelection();
+        }
+    </script>
+</body>
+</html>

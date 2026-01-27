@@ -1,0 +1,12 @@
+{
+  "name": "easylog-admin-tools",
+  "version": "1.0.0",
+  "description": "Admin tools for EasyLog portal management",
+  "private": true,
+  "scripts": {
+    "add-admin": "node add-portal-admin.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

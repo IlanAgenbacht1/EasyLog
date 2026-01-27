@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEngineer() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/engineers/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/engineers/$(request.auth.uid)).data.isActive == true;
+    }
+
+    function isPortalAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/portal_admins/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/portal_admins/$(request.auth.uid)).data.isActive == true;
+    }
+
+    function isOwner(engineerId) {
+      return request.auth.uid == engineerId;
+    }
+
+    // Engineers collection
+    match /engineers/{engineerId} {
+      allow read: if isSignedIn() && (isOwner(engineerId) || isPortalAdmin());
+      allow create: if isSignedIn() && isOwner(engineerId);
+      allow update: if isPortalAdmin();
+      allow delete: if false;
+    }
+
+    // Customers collection
+    match /customers/{customerId} {
+      allow read: if isEngineer() || isPortalAdmin();
+      allow create: if isEngineer();
+      allow update, delete: if isPortalAdmin();
+    }
+
+    // Timelogs collection
+    match /timelogs/{timelogId} {
+      allow read: if isSignedIn() &&
+        (isOwner(resource.data.engineerId) || isPortalAdmin());
+      allow create: if isEngineer() &&
+        request.resource.data.engineerId == request.auth.uid &&
+        request.resource.data.travelTimeMinutes >= 0 &&
+        request.resource.data.travelTimeMinutes <= 720;
+      allow update: if isEngineer() &&
+        isOwner(resource.data.engineerId) &&
+        request.resource.data.engineerId == resource.data.engineerId;
+      allow delete: if isPortalAdmin();
+    }
+
+    // Portal admins collection
+    match /portal_admins/{adminId} {
+      allow read: if isSignedIn() && isOwner(adminId);
+      allow write: if false; // Managed via Firebase Console only
+    }
+  }
+}

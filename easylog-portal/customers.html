@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customers - EasyLog Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <!-- App Scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth-service.js"></script>
+    <script src="js/firestore-service.js"></script>
+    <script src="js/utils.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center h-16">
+                <div class="flex-1 flex items-center">
+                    <span class="text-xl font-bold text-blue-600">EasyLog</span>
+                </div>
+                <div class="flex-1 flex items-center justify-center space-x-1">
+                    <a href="index.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Dashboard</a>
+                    <a href="timelogs.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Time Logs</a>
+                    <a href="engineers.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Engineers</a>
+                    <a href="customers.html" class="text-blue-600 bg-blue-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap">Customers</a>
+                    <a href="reports.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Reports</a>
+                </div>
+                <div class="flex-1 flex items-center justify-end space-x-3">
+                    <div class="text-sm text-right">
+                        <div id="userName" class="font-medium text-gray-900">Loading...</div>
+                        <div class="text-xs text-gray-500">Portal Admin</div>
+                    </div>
+                    <button onclick="handleLogout()" class="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-white hover:bg-red-600 border border-red-600 rounded-md transition">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">Customers</h1>
+                <p class="text-gray-600">Manage customer information</p>
+            </div>
+            <button onclick="openAddModal()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Add Customer
+            </button>
+        </div>
+
+        <!-- Filter -->
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+            <div class="flex items-center space-x-4">
+                <div class="flex-1">
+                    <input type="text" id="searchInput" placeholder="Search customers..."
+                        class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        oninput="filterCustomers()">
+                </div>
+                <div>
+                    <select id="statusFilter" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500" onchange="filterCustomers()">
+                        <option value="all">All Status</option>
+                        <option value="active">Active</option>
+                        <option value="inactive">Inactive</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <p class="text-sm text-gray-500">Total Customers</p>
+                <p id="totalCustomers" class="text-2xl font-bold text-gray-900">-</p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <p class="text-sm text-gray-500">Active Customers</p>
+                <p id="activeCustomers" class="text-2xl font-bold text-green-600">-</p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-4">
+                <p class="text-sm text-gray-500">New This Month</p>
+                <p id="newThisMonth" class="text-2xl font-bold text-blue-600">-</p>
+            </div>
+        </div>
+
+        <!-- Customers Table -->
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="customersTable" class="bg-white divide-y divide-gray-200">
+                    <!-- Populated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Add/Edit Customer Modal -->
+    <div id="customerModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+            <div class="px-6 py-4 border-b">
+                <h3 id="modalTitle" class="text-lg font-semibold text-gray-900">Add Customer</h3>
+            </div>
+            <form id="customerForm" onsubmit="handleSaveCustomer(event)">
+                <div class="px-6 py-4 space-y-4">
+                    <input type="hidden" id="customerId">
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                        <input type="text" id="customerName" required
+                            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                        <textarea id="customerAddress" rows="2"
+                            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+                        <input type="text" id="contactName"
+                            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Contact Phone</label>
+                        <input type="tel" id="contactPhone"
+                            class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div id="statusSection" class="hidden">
+                        <label class="flex items-center">
+                            <input type="checkbox" id="customerActive" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm text-gray-700">Active</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="px-6 py-4 border-t bg-gray-50 flex justify-end space-x-3">
+                    <button type="button" onclick="closeModal()" class="px-4 py-2 text-gray-700 hover:text-gray-900 transition">Cancel</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Customer Details Modal -->
+    <div id="detailsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+            <div class="px-6 py-4 border-b flex justify-between items-center sticky top-0 bg-white">
+                <h3 id="detailsTitle" class="text-lg font-semibold text-gray-900">Customer Details</h3>
+                <button onclick="closeDetailsModal()" class="text-gray-400 hover:text-gray-600 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="detailsContent" class="px-6 py-4">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allCustomers = [];
+
+        // Check auth on load
+        (async function initializeCustomers() {
+            const isAuthed = await authService.requireAuth();
+            if (!isAuthed) return;
+
+            // Set user name
+            const adminInfo = await authService.getCurrentAdminInfo();
+            if (adminInfo) {
+                document.getElementById('userName').textContent = adminInfo.name || adminInfo.email;
+            }
+
+            await loadCustomers();
+        })();
+
+        // Load customers
+        async function loadCustomers() {
+            const tbody = document.getElementById('customersTable');
+            const container = tbody.closest('.bg-white');
+            utils.showLoading(container);
+
+            try {
+                // Fetch all customers (including inactive ones for the portal)
+                const customers = await firestoreService.customers.listAll();
+
+                allCustomers = customers;
+                updateStats(customers);
+                renderCustomers(customers);
+            } catch (error) {
+                utils.showError(container, 'Failed to load customers');
+                utils.showToast(error.message, 'error');
+            }
+        }
+
+        function updateStats(customers) {
+            const total = customers.length;
+            const active = customers.filter(c => c.isActive !== false).length;
+
+            // Count new customers this month
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const newThisMonth = customers.filter(c => {
+                const created = new Date(c.createdAt);
+                return created >= startOfMonth;
+            }).length;
+
+            document.getElementById('totalCustomers').textContent = total;
+            document.getElementById('activeCustomers').textContent = active;
+            document.getElementById('newThisMonth').textContent = newThisMonth;
+        }
+
+        function renderCustomers(customers) {
+            let tbody = document.getElementById('customersTable');
+
+            // If tbody doesn't exist (was replaced by loading spinner), recreate table structure
+            if (!tbody) {
+                const container = document.querySelector('.bg-white.rounded-lg.shadow-sm.overflow-hidden');
+                container.innerHTML = `
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTable" class="bg-white divide-y divide-gray-200">
+                        </tbody>
+                    </table>
+                `;
+                tbody = document.getElementById('customersTable');
+            }
+
+            if (customers.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-6 py-12 text-center text-gray-500">
+                            No customers found
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = customers.map(customer => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4">
+                        <div class="flex items-center">
+                            <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                                <span class="text-purple-600 font-medium">${getInitials(customer.name)}</span>
+                            </div>
+                            <div class="ml-3">
+                                <p class="font-medium text-gray-900">${utils.escapeHtml(customer.name)}</p>
+                                <p class="text-sm text-gray-500">ID: ${customer.id}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <p class="text-gray-900">${utils.escapeHtml(customer.contactName || '-')}</p>
+                        <p class="text-sm text-gray-500">${utils.escapeHtml(customer.contactPhone || '-')}</p>
+                    </td>
+                    <td class="px-6 py-4">
+                        <p class="text-gray-600 text-sm max-w-xs truncate">${utils.escapeHtml(customer.address || '-')}</p>
+                    </td>
+                    <td class="px-6 py-4">
+                        ${customer.isActive !== false
+                            ? '<span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span>'
+                            : '<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Inactive</span>'
+                        }
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex justify-end space-x-2">
+                            <button onclick="viewCustomerDetails('${customer.id}')"
+                                class="text-gray-600 hover:text-gray-800 p-1 transition" title="View Details">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                            </button>
+                            <button onclick="openEditModal('${customer.id}')"
+                                class="text-blue-600 hover:text-blue-800 p-1 transition" title="Edit">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                </svg>
+                            </button>
+                            <button onclick="toggleCustomerStatus('${customer.id}', ${customer.isActive !== false})"
+                                class="${customer.isActive !== false ? 'text-red-600 hover:text-red-800' : 'text-green-600 hover:text-green-800'} p-1 transition"
+                                title="${customer.isActive !== false ? 'Deactivate' : 'Activate'}">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    ${customer.isActive !== false
+                                        ? '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>'
+                                        : '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+                                    }
+                                </svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function getInitials(name) {
+            if (!name) return '?';
+            return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+        }
+
+        function filterCustomers() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const status = document.getElementById('statusFilter').value;
+
+            const filtered = allCustomers.filter(customer => {
+                const matchesSearch = customer.name.toLowerCase().includes(search) ||
+                    (customer.contactName && customer.contactName.toLowerCase().includes(search)) ||
+                    (customer.address && customer.address.toLowerCase().includes(search));
+
+                const matchesStatus = status === 'all' ||
+                    (status === 'active' && customer.isActive !== false) ||
+                    (status === 'inactive' && customer.isActive === false);
+
+                return matchesSearch && matchesStatus;
+            });
+
+            renderCustomers(filtered);
+        }
+
+        // Modal functions
+        function openAddModal() {
+            document.getElementById('modalTitle').textContent = 'Add Customer';
+            document.getElementById('customerForm').reset();
+            document.getElementById('customerId').value = '';
+            document.getElementById('statusSection').classList.add('hidden');
+            document.getElementById('customerModal').classList.remove('hidden');
+            document.getElementById('customerModal').classList.add('flex');
+        }
+
+        function openEditModal(id) {
+            const customer = allCustomers.find(c => c.id === id);
+            if (!customer) return;
+
+            document.getElementById('modalTitle').textContent = 'Edit Customer';
+            document.getElementById('customerId').value = customer.id;
+            document.getElementById('customerName').value = customer.name;
+            document.getElementById('customerAddress').value = customer.address || '';
+            document.getElementById('contactName').value = customer.contactName || '';
+            document.getElementById('contactPhone').value = customer.contactPhone || '';
+            document.getElementById('customerActive').checked = customer.isActive !== false;
+            document.getElementById('statusSection').classList.remove('hidden');
+            document.getElementById('customerModal').classList.remove('hidden');
+            document.getElementById('customerModal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('customerModal').classList.add('hidden');
+            document.getElementById('customerModal').classList.remove('flex');
+        }
+
+        async function handleSaveCustomer(event) {
+            event.preventDefault();
+
+            const id = document.getElementById('customerId').value;
+            const data = {
+                name: document.getElementById('customerName').value,
+                address: document.getElementById('customerAddress').value || null,
+                contactName: document.getElementById('contactName').value || null,
+                contactPhone: document.getElementById('contactPhone').value || null
+            };
+
+            if (id) {
+                data.isActive = document.getElementById('customerActive').checked;
+            }
+
+            try {
+                if (id) {
+                    await firestoreService.customers.update(id, data);
+                    utils.showToast('Customer updated successfully', 'success');
+                } else {
+                    await firestoreService.customers.create(data);
+                    utils.showToast('Customer created successfully', 'success');
+                }
+                closeModal();
+                loadCustomers();
+            } catch (error) {
+                utils.showToast(error.message, 'error');
+            }
+        }
+
+        async function toggleCustomerStatus(id, currentlyActive) {
+            const action = currentlyActive ? 'deactivate' : 'activate';
+            if (!confirm(`Are you sure you want to ${action} this customer?`)) return;
+
+            try {
+                await firestoreService.customers.update(id, { isActive: !currentlyActive });
+                utils.showToast(`Customer ${action}d successfully`, 'success');
+                loadCustomers();
+            } catch (error) {
+                utils.showToast(error.message, 'error');
+            }
+        }
+
+        // Customer Details Modal
+        async function viewCustomerDetails(id) {
+            const customer = allCustomers.find(c => c.id === id);
+            if (!customer) return;
+
+            document.getElementById('detailsTitle').textContent = customer.name;
+            document.getElementById('detailsContent').innerHTML = `
+                <div class="space-y-6">
+                    <!-- Customer Info -->
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Contact Person</p>
+                            <p class="font-medium">${utils.escapeHtml(customer.contactName || '-')}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Contact Phone</p>
+                            <p class="font-medium">${utils.escapeHtml(customer.contactPhone || '-')}</p>
+                        </div>
+                        <div class="col-span-2">
+                            <p class="text-sm text-gray-500">Address</p>
+                            <p class="font-medium">${utils.escapeHtml(customer.address || '-')}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Status</p>
+                            ${customer.isActive !== false
+                                ? '<span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Active</span>'
+                                : '<span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">Inactive</span>'
+                            }
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Created</p>
+                            <p class="font-medium">${utils.formatDate(customer.createdAt)}</p>
+                        </div>
+                    </div>
+
+                    <!-- Recent Time Logs -->
+                    <div>
+                        <h4 class="font-medium text-gray-900 mb-3">Recent Jobs</h4>
+                        <div id="customerTimeLogs">
+                            <div class="text-center py-4 text-gray-500">Loading...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('detailsModal').classList.remove('hidden');
+            document.getElementById('detailsModal').classList.add('flex');
+
+            // Load recent time logs for this customer
+            try {
+                const logs = await firestoreService.customers.getHistory(id);
+                const logsContainer = document.getElementById('customerTimeLogs');
+
+                if (logs.length === 0) {
+                    logsContainer.innerHTML = '<p class="text-gray-500 text-center py-4">No jobs found for this customer</p>';
+                } else {
+                    logsContainer.innerHTML = `
+                        <div class="space-y-2">
+                            ${logs.slice(0, 5).map(log => `
+                                <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                    <div>
+                                        <p class="font-medium">${utils.escapeHtml(log.engineerName)}</p>
+                                        <p class="text-sm text-gray-500">${utils.formatDate(log.timeStarted)}</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="font-medium">${utils.formatMinutes(log.timeOnSiteMinutes)}</p>
+                                        ${utils.getStatusBadge(log.status)}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('customerTimeLogs').innerHTML = '<p class="text-red-500 text-center py-4">Failed to load jobs</p>';
+            }
+        }
+
+        function closeDetailsModal() {
+            document.getElementById('detailsModal').classList.add('hidden');
+            document.getElementById('detailsModal').classList.remove('flex');
+        }
+
+        async function handleLogout() {
+            try {
+                await authService.signOut();
+                window.location.href = 'login.html';
+            } catch (error) {
+                utils.showToast('Failed to log out', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

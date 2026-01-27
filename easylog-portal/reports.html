@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports - EasyLog Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <!-- App Scripts -->
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth-service.js"></script>
+    <script src="js/firestore-service.js"></script>
+    <script src="js/utils.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Navigation -->
+    <nav class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center h-16">
+                <div class="flex-1 flex items-center">
+                    <span class="text-xl font-bold text-blue-600">EasyLog</span>
+                </div>
+                <div class="flex-1 flex items-center justify-center space-x-1">
+                    <a href="index.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Dashboard</a>
+                    <a href="timelogs.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Time Logs</a>
+                    <a href="engineers.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Engineers</a>
+                    <a href="customers.html" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap transition">Customers</a>
+                    <a href="reports.html" class="text-blue-600 bg-blue-50 px-3 py-2 rounded-md text-sm font-medium whitespace-nowrap">Reports</a>
+                </div>
+                <div class="flex-1 flex items-center justify-end space-x-3">
+                    <div class="text-sm text-right">
+                        <div id="userName" class="font-medium text-gray-900">Loading...</div>
+                        <div class="text-xs text-gray-500">Portal Admin</div>
+                    </div>
+                    <button onclick="handleLogout()" class="px-3 py-1.5 text-sm font-medium text-red-600 hover:text-white hover:bg-red-600 border border-red-600 rounded-md transition">
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <div class="mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">Reports</h1>
+            <p class="text-gray-600">Generate and export reports</p>
+        </div>
+
+        <!-- Date Range Filter -->
+        <div class="bg-white rounded-lg shadow-sm p-4 mb-6">
+            <div class="flex flex-wrap items-end gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                    <input type="date" id="startDate" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+                    <input type="date" id="endDate" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="setDateRange('week')" class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition">This Week</button>
+                    <button onclick="setDateRange('month')" class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition">This Month</button>
+                    <button onclick="setDateRange('quarter')" class="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition">This Quarter</button>
+                </div>
+                <button onclick="loadReports()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    Generate Reports
+                </button>
+            </div>
+        </div>
+
+        <!-- Report Tabs -->
+        <div class="mb-6">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex space-x-8">
+                    <button onclick="switchTab('engineers')" id="tab-engineers"
+                        class="tab-btn border-b-2 border-blue-500 py-2 px-1 text-sm font-medium text-blue-600">
+                        Engineer Hours
+                    </button>
+                    <button onclick="switchTab('customers')" id="tab-customers"
+                        class="tab-btn border-b-2 border-transparent py-2 px-1 text-sm font-medium text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                        Customer Jobs
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Engineer Hours Report -->
+        <div id="engineers-report" class="report-content">
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b flex justify-between items-center">
+                    <h3 class="font-semibold text-gray-900">Engineer Hours Summary</h3>
+                    <button onclick="exportEngineerReport()" class="text-blue-600 hover:text-blue-800 flex items-center text-sm transition">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        Export CSV
+                    </button>
+                </div>
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engineer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jobs Completed</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Travel</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total On-Site</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Hours</th>
+                        </tr>
+                    </thead>
+                    <tbody id="engineerReportTable" class="bg-white divide-y divide-gray-200">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                    <tfoot id="engineerReportFooter" class="bg-gray-50 font-semibold">
+                        <!-- Populated by JavaScript -->
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- Customer Jobs Report -->
+        <div id="customers-report" class="report-content hidden">
+            <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+                <div class="px-6 py-4 border-b flex justify-between items-center">
+                    <h3 class="font-semibold text-gray-900">Customer Jobs Summary</h3>
+                    <button onclick="exportCustomerReport()" class="text-blue-600 hover:text-blue-800 flex items-center text-sm transition">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                        </svg>
+                        Export CSV
+                    </button>
+                </div>
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jobs Completed</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Hours</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Hours/Job</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engineers</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerReportTable" class="bg-white divide-y divide-gray-200">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                    <tfoot id="customerReportFooter" class="bg-gray-50 font-semibold">
+                        <!-- Populated by JavaScript -->
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let engineerReportData = [];
+        let customerReportData = [];
+        let currentTab = 'engineers';
+
+        // Check auth on load
+        (async function initializeReports() {
+            const isAuthed = await authService.requireAuth();
+            if (!isAuthed) return;
+
+            // Set user name
+            const adminInfo = await authService.getCurrentAdminInfo();
+            if (adminInfo) {
+                document.getElementById('userName').textContent = adminInfo.name || adminInfo.email;
+            }
+
+            initializeDates();
+            await loadReports();
+        })();
+
+        // Set default date range to this month
+        function initializeDates() {
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            document.getElementById('startDate').value = utils.getDateInputValue(startOfMonth);
+            document.getElementById('endDate').value = utils.getDateInputValue(now);
+        }
+
+        function setDateRange(range) {
+            const now = new Date();
+            let start;
+
+            switch (range) {
+                case 'week':
+                    start = new Date(now);
+                    start.setDate(now.getDate() - now.getDay()); // Start of week (Sunday)
+                    break;
+                case 'month':
+                    start = new Date(now.getFullYear(), now.getMonth(), 1);
+                    break;
+                case 'quarter':
+                    const quarter = Math.floor(now.getMonth() / 3);
+                    start = new Date(now.getFullYear(), quarter * 3, 1);
+                    break;
+            }
+
+            document.getElementById('startDate').value = utils.getDateInputValue(start);
+            document.getElementById('endDate').value = utils.getDateInputValue(now);
+            loadReports();
+        }
+
+        function switchTab(tab) {
+            currentTab = tab;
+
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-600');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+            document.getElementById(`tab-${tab}`).classList.remove('border-transparent', 'text-gray-500');
+            document.getElementById(`tab-${tab}`).classList.add('border-blue-500', 'text-blue-600');
+
+            // Show/hide content
+            document.querySelectorAll('.report-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            document.getElementById(`${tab}-report`).classList.remove('hidden');
+        }
+
+        async function loadReports() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if (!startDate || !endDate) {
+                utils.showToast('Please select date range', 'error');
+                return;
+            }
+
+            await Promise.all([
+                loadEngineerReport(startDate, endDate),
+                loadCustomerReport(startDate, endDate)
+            ]);
+        }
+
+        async function loadEngineerReport(startDate, endDate) {
+            const tbody = document.getElementById('engineerReportTable');
+            const tfoot = document.getElementById('engineerReportFooter');
+
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Loading...</td></tr>`;
+            tfoot.innerHTML = '';
+
+            try {
+                const report = await firestoreService.dashboard.getEngineerHours(startDate, endDate);
+
+                // Transform to match expected format
+                engineerReportData = report.map(eng => ({
+                    engineerName: eng.engineerName,
+                    jobsCompleted: eng.jobCount,
+                    totalTravelMinutes: Math.round(eng.travelHours * 60),
+                    totalOnSiteMinutes: Math.round(eng.onsiteHours * 60),
+                    totalMinutes: Math.round(eng.totalHours * 60)
+                }));
+
+                if (engineerReportData.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No data for selected period</td></tr>`;
+                    return;
+                }
+
+                // Calculate totals
+                const totals = engineerReportData.reduce((acc, row) => ({
+                    jobs: acc.jobs + row.jobsCompleted,
+                    travel: acc.travel + row.totalTravelMinutes,
+                    onSite: acc.onSite + row.totalOnSiteMinutes,
+                    total: acc.total + row.totalMinutes
+                }), { jobs: 0, travel: 0, onSite: 0, total: 0 });
+
+                tbody.innerHTML = engineerReportData.map(row => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                    <span class="text-blue-600 font-medium">${getInitials(row.engineerName)}</span>
+                                </div>
+                                <span class="ml-3 font-medium text-gray-900">${utils.escapeHtml(row.engineerName)}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-gray-900">${row.jobsCompleted}</td>
+                        <td class="px-6 py-4 text-gray-600">${utils.formatMinutes(row.totalTravelMinutes)}</td>
+                        <td class="px-6 py-4 text-gray-600">${utils.formatMinutes(row.totalOnSiteMinutes)}</td>
+                        <td class="px-6 py-4 font-medium text-gray-900">${utils.formatHoursDecimal(row.totalMinutes)}h</td>
+                    </tr>
+                `).join('');
+
+                tfoot.innerHTML = `
+                    <tr>
+                        <td class="px-6 py-4">Total (${engineerReportData.length} engineers)</td>
+                        <td class="px-6 py-4">${totals.jobs}</td>
+                        <td class="px-6 py-4">${utils.formatMinutes(totals.travel)}</td>
+                        <td class="px-6 py-4">${utils.formatMinutes(totals.onSite)}</td>
+                        <td class="px-6 py-4">${utils.formatHoursDecimal(totals.total)}h</td>
+                    </tr>
+                `;
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-red-500">Failed to load report</td></tr>`;
+                utils.showToast(error.message, 'error');
+            }
+        }
+
+        async function loadCustomerReport(startDate, endDate) {
+            const tbody = document.getElementById('customerReportTable');
+            const tfoot = document.getElementById('customerReportFooter');
+
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">Loading...</td></tr>`;
+            tfoot.innerHTML = '';
+
+            try {
+                const report = await firestoreService.dashboard.getCustomerJobs(startDate, endDate);
+
+                // Transform to match expected format with unique engineers count
+                customerReportData = report.map(cust => ({
+                    customerName: cust.customerName,
+                    jobsCompleted: cust.jobCount,
+                    totalMinutes: Math.round(cust.totalHours * 60),
+                    avgMinutesPerJob: cust.jobCount > 0 ? Math.round((cust.totalHours * 60) / cust.jobCount) : 0,
+                    uniqueEngineers: 1 // Note: need to calculate this separately if needed
+                }));
+
+                if (customerReportData.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No data for selected period</td></tr>`;
+                    return;
+                }
+
+                // Calculate totals
+                const totals = customerReportData.reduce((acc, row) => ({
+                    jobs: acc.jobs + row.jobsCompleted,
+                    hours: acc.hours + row.totalMinutes
+                }), { jobs: 0, hours: 0 });
+
+                tbody.innerHTML = customerReportData.map(row => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4">
+                            <div class="flex items-center">
+                                <div class="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                                    <span class="text-purple-600 text-sm font-medium">${getInitials(row.customerName)}</span>
+                                </div>
+                                <span class="ml-3 font-medium text-gray-900">${utils.escapeHtml(row.customerName)}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 text-gray-900">${row.jobsCompleted}</td>
+                        <td class="px-6 py-4 text-gray-600">${utils.formatHoursDecimal(row.totalMinutes)}h</td>
+                        <td class="px-6 py-4 text-gray-600">${utils.formatHoursDecimal(row.avgMinutesPerJob)}h</td>
+                        <td class="px-6 py-4 text-gray-600">-</td>
+                    </tr>
+                `).join('');
+
+                tfoot.innerHTML = `
+                    <tr>
+                        <td class="px-6 py-4">Total (${customerReportData.length} customers)</td>
+                        <td class="px-6 py-4">${totals.jobs}</td>
+                        <td class="px-6 py-4">${utils.formatHoursDecimal(totals.hours)}h</td>
+                        <td class="px-6 py-4">${totals.jobs > 0 ? utils.formatHoursDecimal(totals.hours / totals.jobs) : 0}h</td>
+                        <td class="px-6 py-4">-</td>
+                    </tr>
+                `;
+            } catch (error) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-red-500">Failed to load report</td></tr>`;
+                utils.showToast(error.message, 'error');
+            }
+        }
+
+        function getInitials(name) {
+            if (!name) return '?';
+            return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+        }
+
+        function exportEngineerReport() {
+            if (engineerReportData.length === 0) {
+                utils.showToast('No data to export', 'error');
+                return;
+            }
+
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            const headers = ['Engineer', 'Jobs Completed', 'Travel Hours', 'On-Site Hours', 'Total Hours'];
+            const rows = engineerReportData.map(row => [
+                row.engineerName,
+                row.jobsCompleted,
+                (row.totalTravelMinutes / 60).toFixed(2),
+                (row.totalOnSiteMinutes / 60).toFixed(2),
+                (row.totalMinutes / 60).toFixed(2)
+            ]);
+
+            downloadCSV(headers, rows, `engineer-hours-${startDate}-to-${endDate}.csv`);
+        }
+
+        function exportCustomerReport() {
+            if (customerReportData.length === 0) {
+                utils.showToast('No data to export', 'error');
+                return;
+            }
+
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            const headers = ['Customer', 'Jobs Completed', 'Total Hours', 'Avg Hours/Job', 'Unique Engineers'];
+            const rows = customerReportData.map(row => [
+                row.customerName,
+                row.jobsCompleted,
+                (row.totalMinutes / 60).toFixed(2),
+                (row.avgMinutesPerJob / 60).toFixed(2),
+                row.uniqueEngineers
+            ]);
+
+            downloadCSV(headers, rows, `customer-jobs-${startDate}-to-${endDate}.csv`);
+        }
+
+        function downloadCSV(headers, rows, filename) {
+            const csvContent = [
+                headers.join(','),
+                ...rows.map(row => row.map(cell =>
+                    typeof cell === 'string' && cell.includes(',') ? `"${cell}"` : cell
+                ).join(','))
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+            URL.revokeObjectURL(link.href);
+
+            utils.showToast('Report exported successfully', 'success');
+        }
+
+        async function handleLogout() {
+            try {
+                await authService.signOut();
+                window.location.href = 'login.html';
+            } catch (error) {
+                utils.showToast('Failed to log out', 'error');
+            }
+        }
+    </script>
+</body>
+</html>
